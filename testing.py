@@ -6,4 +6,4 @@ conn = sqlite3.connect('database.sqlite') #Connact to soccer database
 tables = pandas.read_sql("""SELECT *
                         FROM sqlite_master
                         WHERE type='table';""", conn) #running tested queries
-tables
+tables #extracting tables

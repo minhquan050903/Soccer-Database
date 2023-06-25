@@ -1,5 +1,6 @@
 # %% [code]
 # %% [code]
+# %% [code]
 # This Python 3 environment comes with many helpful analytics libraries installed
 # It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python
 # For example, here's several helpful packages to load
@@ -65,7 +66,7 @@ FROM (
         SUM(assists) AS sum_assists,
         SUM(games.away_club_goals),
         market_value_in_eur, 
-        strftime('%Y', 'now') - strftime('%Y', players.date_of_birth) AS age,
+        strftime('%Y', '2016-01-01') - strftime('%Y', players.date_of_birth) AS age,
         COALESCE(SUM(minutes_played)/NULLIF(SUM(goals),0), 9999) AS GoalsPerMinute 
     FROM players 
     INNER JOIN appearances ON players.player_id = appearances.player_id

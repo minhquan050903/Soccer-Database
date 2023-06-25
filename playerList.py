@@ -1,4 +1,5 @@
 # %% [code]
+# %% [code]
 # This Python 3 environment comes with many helpful analytics libraries installed
 # It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python
 # For example, here's several helpful packages to load
@@ -36,45 +37,54 @@ appearances.to_sql("appearances", con=engine)
 games.to_sql("games", con=engine)
 
 with engine.connect() as conn:
-    query = conn.execute(text("""SELECT 
-        t1.player_name, 
-        t1.country_of_citizenship,
-        t1.position,
-        t1.sub_position, 
-        t1.sum_minutes_played, 
-        t1.sum_goals, 
-        t1.sum_assists, 
-        t1.market_value_in_eur, 
-        t1.GoalsPerMinute, 
-        t1.AssistsPerMinute,
-        t1.LoseGoalsPerMinute,
-        PERCENT_RANK() OVER (PARTITION BY t1.sub_position ORDER BY t1.GoalsPerMinute) AS GoalsPercentile,
-        PERCENT_RANK() OVER (PARTITION BY t1.sub_position ORDER BY t1.AssistsPerMinute) AS AssistsPercentile,
-        PERCENT_RANK() OVER (PARTITION BY t1.sub_position ORDER BY t1.LoseGoalsPerMinute) AS LoseGoalsPercentile
-    FROM (
-        SELECT 
-            player_name, 
-            country_of_citizenship,
-            position,
-            sub_position, 
-            SUM(minutes_played) AS sum_minutes_played, 
-            SUM(goals) AS sum_goals, 
-            SUM(assists) AS sum_assists,
-            SUM(games.away_club_goals),
-            market_value_in_eur, 
-            COALESCE(SUM(minutes_played)/NULLIF(SUM(goals),0), 9999) AS GoalsPerMinute, 
-            COALESCE(SUM(minutes_played)/NULLIF(SUM(assists),0), 9999) AS AssistsPerMinute, 
-            COALESCE(SUM(minutes_played)/NULLIF(SUM(games.away_club_goals),0), 9999) AS LoseGoalsPerMinute 
-        FROM players 
-        INNER JOIN games ON appearances.game_id = games.game_id 
-        INNER JOIN appearances ON appearances.player_id = players.player_id 
-        WHERE games.season = '2021' 
-        GROUP BY player_name, sub_position 
-        HAVING SUM(minutes_played) >= 1500 
-    ) AS t1
-    ORDER BY  t1.GoalsPerMinute"""))
+    query = conn.execute(text("""
+SELECT 
+    t1.player_name, 
+    t1.country_of_citizenship,
+    t1.position,
+    t1.sub_position,
+    t1.height_in_cm,
+    t1.current_club_domestic_competition_id,
+    t1.sum_minutes_played, 
+    t1.sum_goals, 
+    t1.sum_assists, 
+    t1.market_value_in_eur, 
+    t1.GoalsPerMinute, 
+    t1.age,
+    PERCENT_RANK() OVER (PARTITION BY t1.sub_position ORDER BY t1.GoalsPerMinute) AS GoalsPercentile
+FROM (
+    SELECT 
+        player_name, 
+        country_of_citizenship,
+        position,
+        sub_position, 
+        height_in_cm,
+        current_club_domestic_competition_id,
+        SUM(minutes_played) AS sum_minutes_played, 
+        SUM(goals) AS sum_goals, 
+        SUM(assists) AS sum_assists,
+        SUM(games.away_club_goals),
+        market_value_in_eur, 
+        strftime('%Y', 'now') - strftime('%Y', players.date_of_birth) AS age,
+        COALESCE(SUM(minutes_played)/NULLIF(SUM(goals),0), 9999) AS GoalsPerMinute 
+    FROM players 
+    INNER JOIN appearances ON players.player_id = appearances.player_id
+    INNER JOIN games ON appearances.game_id = games.game_id 
+    WHERE games.season = '2016' 
+    GROUP BY player_name, sub_position 
+    HAVING SUM(minutes_played) >= 1500 
+) AS t1
+ORDER BY t1.GoalsPerMinute
+"""))
 
 df = pd.DataFrame(query.fetchall())
 df.columns = query.keys()
 
 df
+
+df['Strkore'] = df.apply(lambda row: (1- row['GoalsPercentile']) * 0.6 + (row['height_in_cm']) * 0.15 +
+                        (1 if 18 <= row['age'] <= 23 else 0.5) * 0.1 +
+                        (0.5 if row['market_value_in_eur'] > 100000000 else 0.75 if 50000000 <= row['market_value_in_eur'] <= 100000000 else 1) * 0.05 +
+                        (1 if row['current_club_domestic_competition_id'] in ['GB1', 'L1', 'ES1', 'FR1', 'IT1'] else 0.5) * 0.1, axis=1) #note : L1 IS BUNGDESLIGA
+
+
